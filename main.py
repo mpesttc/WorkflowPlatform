@@ -1,16 +1,37 @@
-# This is a sample Python script.
+from contextlib import asynccontextmanager
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from fastapi import FastAPI
+import json
+import aio_pika
 
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+from rabiit import init_rabbit, close_rabbit, get_exchange
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await init_rabbit()
+    yield
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # Shutdown
+    await close_rabbit()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.post('/tasks')
+async def create_task(task_id: int):
+    event = {
+        'event': 'task.created',
+        'task_id': task_id,
+    }
+
+    exchange = get_exchange()
+
+    message = aio_pika.Message(
+        body=json.dumps(event).encode(),
+        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+    )
+
+    await exchange.publish(message, routing_key='task.created')
+
+    return {"status": "queued"}
