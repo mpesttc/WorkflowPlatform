@@ -13,6 +13,7 @@ class Worker:
         self.exchange: aio_pika.AbstractExchange | None = None
         self.queue: aio_pika.AbstractQueue | None = None
         self.should_stop: asyncio.Event()
+        self.processed_events = set()
 
     async def connect(self):
         self.connection = await aio_pika.connect_robust(AMQP_URL)
@@ -76,6 +77,13 @@ class Worker:
 
             data = json.loads(message.body.decode())
             print(f'Processing {data}, attempt {retries + 1}')
+
+            event_id = data['event_id']
+            if event_id in self.processed_events:
+                print('Duplicate detected, skipping')
+                return
+
+            self.processed_events.add(event_id)
 
             try:
                 if data['task_id'] == 1:

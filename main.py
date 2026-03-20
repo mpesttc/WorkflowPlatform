@@ -1,3 +1,4 @@
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -35,3 +36,11 @@ async def create_task(task_id: int):
     await exchange.publish(message, routing_key='task.created')
 
     return {"status": "queued"}
+
+@app.post('/tasks')
+async def create_task(task_id: int):
+    event = {
+        'event_id': str(uuid.uuid4()),
+        'event': 'task.created',
+        'task_id': task_id,
+    }
